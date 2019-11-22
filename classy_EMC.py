@@ -1,17 +1,14 @@
+##
 import pandas, pyvisa, time, random 
-
-
-
 
 psa_address = "TCPIP0::10.204.23.89::inst0::INSTR"
 psg_address = "ASRL4::INSTR"
 scope_adress = "TCPIP0::10.204.23.118::inst0::INSTR"
 
-
+## ResourceManager initializer and basic/generic methods 
 
 class visa_instrumment():
     def __init__(self, instrument_address):
-        print("sss")
         self.inst=pyvisa.ResourceManager().open_resource('%s' %(instrument_address))
         self.inst.read_termination = '\n'
         self.inst.timeout = 5000
@@ -26,22 +23,7 @@ class visa_instrumment():
         a=0
     def filename_gen(self):
         self.filename = str(int(random.random()*10000000))
-
-
-class psa_marker(psa_e444x):
-    def __init__(self, marker):
-        self.inst.write("CALC:MARK%d:STAT:ON"%marker)
-        
-        
-    def get_marker(self, marker=1):
-        f=self.inst.query('CALC:MARK%d:X?;' %(marker))
-        amp=self.inst.query('CALC:MARK%d:Y?;' %(marker))
-        marker={'freq':[], 'ampl':[]}
-        marker['freq'].append(f)
-        marker['ampl'].append(amp)
-        return marker
-        
-
+## methods of measurments
 class psa_e444x(visa_instrumment):
     def save(self, path, local_filename, trace=1, csv=1, screen=1):
         self.filename_gen()
@@ -66,12 +48,13 @@ class psa_e444x(visa_instrumment):
         else:
             print("NO TRACE WILL BE SAVE")
             
-    def single(self, nsweep, max_hold=0):
+
+    def single(self, trace=1, nsweep=1, max_hold=0):
         self.ocp_check()
         counter_sweep=0
+        self.inst.write("TRAC%d:MODE WRIT"%(trace))
         if max_hold==1:
-            self.inst.write("TRAC:MODE MINH")
-            self.inst.write("TRAC:MODE MAXH")
+            self.inst.write("TRAC%d:MODE MAXH"%(trace))
         while counter_sweep!=nsweep:
             self.inst.write("TRIG:SOUR IMM")    
             self.inst.write("INIT:CONT OFF")
@@ -79,6 +62,8 @@ class psa_e444x(visa_instrumment):
             self.ocp_check()    
             self.inst.write("DISP:FSCR ON")
             counter_sweep=counter_sweep+1
+
+
     def main_set(self, freq_start, freq_stop, rbw, att, rlev, point_name, units, points):
         self.inst.write("UNIT:POW %s" %(units))
         self.inst.write("SWE:POIN %d" %(points))
@@ -88,10 +73,28 @@ class psa_e444x(visa_instrumment):
         self.inst.write("FREQ:STAR %d Hz" %(freq_start))
         self.inst.write("FREQ:STOP %d Hz" %(freq_stop))
 
+## methods for set and get marker
 
-
-
-
-
+class psa_marker():
+    def __init__(self, psa, marker=1):
+        self.inst=psa.inst
+        self.marker=marker
+        self.inst.write("CALC:MARK%d:STAT ON"%self.marker)
+    
+    def peak_search(self):
+        self.inst.write("CALC:MARK%d:MAX"%(self.marker))
+         
+    def set_marker(self, freq):
+        self.inst.write('CALC:MARK%d:X %d;' %(self.marker, freq))
+        
+    def get_marker(self):
+        f=self.inst.query('CALC:MARK%d:X?;' %(self.marker))
+        amp=self.inst.query('CALC:MARK%d:Y?;' %(self.marker))
+        marker_val={'freq':[], 'ampl':[]}
+        marker_val['freq'].append(f)
+        marker_val['ampl'].append(amp)
+        return marker_val
+        
+##run 
 
 psa1=psa_e444x(psa_address)     
